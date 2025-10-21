@@ -1,0 +1,311 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Dashboard Executivo – IsItDownRightNow (v5 – Down Now++ robusto)</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{
+      --bg:#0b1220; --panel:#0f1a2c; --muted:#a7b6d9; --border:#213154; --accent:#7ab8ff;
+      --ok:#25c18a; --down:#ff6b6b; --warn:#ffd166; --ink:#e7eefc; --card:#0d1626;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,#0a0f1d,#0b1220);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Roboto,Arial}
+    header{padding:22px 24px;border-bottom:1px solid var(--border);display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+    h1{margin:0;font-size:1.6rem}
+    .sub{color:var(--muted)}
+    .toolbar{padding:14px 24px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border)}
+    button,.btn{background:var(--accent);color:#061126;border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer;box-shadow:0 10px 24px rgba(122,184,255,.28)}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    input,select{background:#0f1a2c;color:var(--ink);border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+    .pill{background:#0e1626;border:1px solid var(--border);border-radius:999px;padding:6px 10px;color:var(--muted)}
+    main{padding:20px}
+    .grid{display:grid;grid-template-columns:1.3fr .7fr;gap:16px}
+    @media (max-width:1200px){.grid{grid-template-columns:1fr}}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:0 12px 30px rgba(3,8,20,.35);overflow:hidden}
+    .card-header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border)}
+    .card-header h2{margin:0;font-size:1.1rem}
+    .card-body{padding:14px 16px}
+    .muted{color:var(--muted);font-size:.92rem}
+    .badge{padding:4px 10px;border-radius:999px;font-size:.82rem;font-weight:700;display:inline-block}
+    .ok{background:rgba(37,193,138,.18);color:#7cefc3;border:1px solid rgba(37,193,138,.45)}
+    .down{background:rgba(255,107,107,.18);color:#ff9c9c;border:1px solid rgba(255,107,107,.45)}
+    .unknown{background:rgba(255,209,102,.16);color:#ffe29c;border:1px solid rgba(255,209,102,.4)}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px 8px;border-bottom:1px solid var(--border);text-align:left;font-size:.95rem}
+    th{color:var(--muted);font-weight:600}
+    tr:hover{background:#0f1e35}
+    .chips{display:flex;gap:8px;flex-wrap:wrap}
+    .chip{background:#2a1520;border:1px solid #5d2233;border-radius:999px;padding:8px 12px;font-weight:700;color:#ffd4d4}
+    .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+    @media (max-width:1200px){.cards{grid-template-columns:1fr}}
+    .dn-card{background:linear-gradient(180deg,#1a1120,#1c1114);border:1px solid #4a1e2a;border-radius:14px;padding:12px}
+    .dn-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+    .dn-title{font-weight:800;font-size:1rem}
+    .dn-sub{color:#ffd4d4;font-size:.92rem}
+    .dn-meta{color:#ffb3b3;font-size:.85rem}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Dashboard Executivo – Status de Sites</h1>
+    <div class="sub">Fonte: IsItDownRightNow.com • Módulo “Down Right Now” reforçado (parser robusto + fallback)</div>
+  </header>
+
+  <div class="toolbar">
+    <button id="refreshBtn">🔄 Atualizar</button>
+    <input id="filterInput" type="text" placeholder="Filtrar domínio/serviço..."/>
+    <select id="viewSelect">
+      <option value="all">Todos</option>
+      <option value="onlydown">Apenas indisponíveis</option>
+      <option value="onlyup">Apenas operacionais</option>
+    </select>
+    <span class="pill" id="lastRun">Última atualização: —</span>
+    <a class="btn" href="https://www.isitdownrightnow.com/" target="_blank" rel="noopener">Abrir fonte</a>
+  </div>
+
+  <main class="grid">
+    <section class="card">
+      <div class="card-header">
+        <h2>🔴 Down Right Now <span id="dnCount" class="badge down" style="margin-left:8px">0</span></h2>
+        <div class="muted">Ordenado por recência • cores por prioridade</div>
+      </div>
+      <div class="card-body">
+        <div class="chips" id="quickChips"></div>
+        <div style="height:10px"></div>
+        <div class="cards" id="downCards"></div>
+        <div style="height:12px"></div>
+        <table id="downNowTable">
+          <thead><tr><th>Domínio</th><th>Título</th><th>Status</th><th>Último check</th><th>Recência</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <h2>Top Websites • Último check</h2>
+        <span class="muted">Gráfico + tabela</span>
+      </div>
+      <div class="card-body">
+        <canvas id="barRecency" height="220"></canvas>
+        <table id="topTable" style="margin-top:10px">
+          <thead><tr><th>Serviço</th><th>Domínio</th><th>Status</th><th>Última verificação</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header"><h2>Modo alternativo (colar conteúdo)</h2><span class="muted">Use se a coleta automática falhar</span></div>
+      <div class="card-body">
+        <textarea id="manualPaste" placeholder="Cole o HTML/texto da página do IsItDownRightNow e clique em Processar..."></textarea>
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+          <button id="processBtn">📄 Processar conteúdo colado</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+<script>
+  const SRC = "https://r.jina.ai/http://www.isitdownrightnow.com/";
+  const state = { raw:"", parsed:null };
+  let barRecencyChart;
+
+  const $ = (s)=>document.querySelector(s);
+  const $$ = (s)=>Array.from(document.querySelectorAll(s));
+
+  function badge(s){
+    if(!s) return '<span class="badge unknown">desconhecido</span>';
+    const t = s.toLowerCase();
+    if(t.includes("up")) return '<span class="badge ok">up</span>';
+    if(t.includes("down")) return '<span class="badge down">down</span>';
+    return '<span class="badge unknown">'+s+'</span>';
+  }
+
+  function secondsFromPhrase(s){
+    if(!s) return 0;
+    // suporta singular e plural: sec/secs, min/mins, hour/hours, day/days
+    const m = /(\d+)\s*(second|seconds|sec|secs|min|mins|minute|minutes|hour|hours|day|days)/i.exec(s);
+    if(!m) return 0;
+    const v = +m[1]; const unit = m[2].toLowerCase();
+    if(unit.startsWith("sec") || unit.startsWith("second")) return v;
+    if(unit.startsWith("min")) return v*60;
+    if(unit.startsWith("hour")) return v*3600;
+    if(unit.startsWith("day")) return v*86400;
+    return 0;
+  }
+
+  function humanizeSeconds(s){
+    if(s < 60) return `${s}s`;
+    const m = Math.round(s/60);
+    if(m < 60) return `${m}m`;
+    const h = Math.round(m/60);
+    if(h < 48) return `${h}h`;
+    const d = Math.round(h/24);
+    return `${d}d`
+  }
+
+  function parsePrimary(txt){
+    // parser principal (genérico)
+    const t = txt.replace(/\r/g,"").replace(/\t/g," ").replace(/[ ]{2,}/g," ");
+    const top=[], downnow=[], latest=[];
+    const topRegex=/([A-Za-z0-9\.\-]+\.(?:[a-z]{2,}))(?: is )(?:(up|down))\. Checked ([^\.]+) ago\./gim;
+    let m; while((m = topRegex.exec(t))!==null){
+      const domain=m[1].toLowerCase(), status=m[2], checked=m[3];
+      top.push({name:domain.split(".")[0].replace(/^\w/,c=>c.toUpperCase()), domain, status, checked});
+    }
+    const dnRegex=/([a-z0-9\.\-]+\.(?:[a-z]{2,}))\s*-\s*([^\n]+?)\s+Server is (down|up)\. Last checked ([^\n]+?)\./gim;
+    while((m = dnRegex.exec(t))!==null){
+      downnow.push({domain:m[1].toLowerCase(), title:m[2].trim(), status:m[3], checked:m[4].trim()});
+    }
+    const ltRegex=/([a-z0-9\.\-]+\.(?:[a-z]{2,}))\s*-\s*([^\n]+?)\s+Server is (down|up)\. Last checked ([^\n]+?)\./gim;
+    while((m = ltRegex.exec(t))!==null){
+      latest.push({domain:m[1].toLowerCase(), title:m[2].trim(), status:m[3], checked:m[4].trim()});
+    }
+    return {top, downnow, latest, raw:t};
+  }
+
+  function parseDownSectionSlice(raw){
+    // fallback: fatiar a seção "Down Right Now" e varrer linhas
+    const idx = raw.toLowerCase().indexOf("down right now");
+    if(idx === -1) return [];
+    const tail = raw.slice(idx, idx + 2000); // janela local
+    const regex = /([a-z0-9\.\-]+\.(?:[a-z]{2,}))\s*-\s*([^\n]+?)\s+Server is (down|up)\. Last checked ([^\n]+?)\./gim;
+    const out = [];
+    let m; while((m = regex.exec(tail))!==null){
+      out.push({domain:m[1].toLowerCase(), title:m[2].trim(), status:m[3], checked:m[4].trim()});
+    }
+    return out;
+  }
+
+  function enrichAndSortDown(p){
+    let dn = [...p.downnow];
+    if(dn.length === 0){
+      // fallback 1: derivar de latest
+      dn = p.latest.filter(x=>String(x.status).toLowerCase()==="down");
+    }
+    if(dn.length === 0){
+      // fallback 2: derivar de top
+      dn = p.top.filter(x=>String(x.status).toLowerCase()==="down").map(x=>({domain:x.domain, title:x.name, status:x.status, checked:x.checked}));
+    }
+    // fallback 3: fatia da seção
+    if(dn.length === 0){
+      const sliced = parseDownSectionSlice(p.raw || "");
+      if(sliced.length) dn = sliced;
+    }
+    // adicionar 'sec' e ordenar
+    dn = dn.map(r=>({...r, sec: secondsFromPhrase(r.checked)})).sort((a,b)=> a.sec - b.sec);
+    return dn;
+  }
+
+  function renderDownNow(p){
+    const dn = enrichAndSortDown(p);
+    $("#dnCount").textContent = dn.length;
+    // Chips
+    const chips = (dn.slice(0,12).map(r=>`<span class="chip">🔴 ${r.domain} • ${humanizeSeconds(r.sec)}</span>`).join("")) || '<span class="chip">Sem alertas em "Down Right Now"</span>';
+    $("#quickChips").innerHTML = chips;
+    // Cards
+    const cardsHTML = dn.map(r=>{
+      const detailUrl = `https://www.isitdownrightnow.com/${r.domain}.html`;
+      return `<div class="dn-card">
+        <div class="dn-head"><div class="dn-title">${r.domain}</div><div class="badge down">DOWN</div></div>
+        <div class="dn-sub">${r.title||""}</div>
+        <div class="dn-meta">Último check: <b>${r.checked}</b> • Recência: <b>${humanizeSeconds(r.sec)}</b></div>
+        <div style="margin-top:8px">
+          <a class="btn" style="padding:6px 10px" href="${detailUrl}" target="_blank" rel="noopener">🔎 Detalhe</a>
+        </div>
+      </div>`;
+    }).join("");
+    $("#downCards").innerHTML = cardsHTML;
+    // Tabela
+    $("#downNowTable tbody").innerHTML = dn.map(r=>`
+      <tr>
+        <td><a href="https://${r.domain}" target="_blank" rel="noopener">${r.domain}</a></td>
+        <td>${r.title||"-"}</td>
+        <td>${badge("down")}</td>
+        <td>${r.checked||"-"}</td>
+        <td>${humanizeSeconds(r.sec)}</td>
+      </tr>
+    `).join("");
+  }
+
+  function renderTop(p){
+    const dataTop = p.top.slice(0,20).map(x=>({label:x.domain, sec: secondsFromPhrase(x.checked||"")}));
+    const labels = dataTop.map(r=>r.label);
+    const secs = dataTop.map(r=>r.sec);
+    const ctx1 = $("#barRecency").getContext("2d");
+    barRecencyChart && barRecencyChart.destroy();
+    barRecencyChart = new Chart(ctx1, {
+      type:"bar",
+      data:{labels, datasets:[{label:"Tempo desde o último check (s)", data:secs}]},
+      options:{indexAxis:"y", plugins:{legend:{display:false}, tooltip:{callbacks:{label:(i)=>`${i.label}: ${humanizeSeconds(Math.round(i.raw||0))}`}}},
+        scales:{x:{grid:{color:"rgba(255,255,255,.08)"}}, y:{grid:{display:false}}}}
+    });
+    $("#topTable tbody").innerHTML = p.top.map(r=>`
+      <tr data-dom="${(r.domain||"").toLowerCase()}" data-status="${(r.status||"").toLowerCase()}">
+        <td>${r.name||"-"}</td>
+        <td><a href="https://${r.domain}" target="_blank" rel="noopener">${r.domain||"-"}</a></td>
+        <td>${badge(r.status)}</td>
+        <td>${r.checked||"-"}</td>
+      </tr>
+    `).join("");
+  }
+
+  function applyViewAndFilter(){
+    const term = ($("#filterInput").value||"").trim().toLowerCase();
+    const view = $("#viewSelect").value;
+    $$("tbody tr").forEach(tr=>{
+      const dom = (tr.getAttribute("data-dom")||"").toLowerCase();
+      const status = (tr.getAttribute("data-status")||"");
+      let visible = true;
+      if(term && !dom.includes(term)) visible = false;
+      if(view==="onlydown" && !status.includes("down")) visible = false;
+      if(view==="onlyup" && !status.includes("up")) visible = false;
+      tr.style.display = visible ? "" : "none";
+    });
+  }
+
+  function renderAll(parsed){
+    renderDownNow(parsed);
+    renderTop(parsed);
+    applyViewAndFilter();
+  }
+
+  async function fetchLive(){
+    const btn = $("#refreshBtn");
+    btn.disabled = true; btn.textContent = "Atualizando...";
+    try{
+      const res = await fetch(SRC, {cache:"no-store"});
+      const text = await res.text();
+      state.raw = text;
+      const parsed = parsePrimary(text);
+      state.parsed = parsed;
+      renderAll(state.parsed);
+      $("#lastRun").textContent = "Última atualização: " + new Date().toLocaleString();
+    }catch(err){
+      alert("Falha ao coletar automaticamente. Use o modo 'colar conteúdo'.\nErro: "+err);
+    }finally{
+      btn.disabled = false; btn.textContent = "🔄 Atualizar";
+    }
+  }
+
+  $("#refreshBtn").addEventListener("click", fetchLive);
+  $("#processBtn").addEventListener("click", ()=>{
+    const txt = $("#manualPaste").value||"";
+    if(!txt.trim()) return alert("Cole o conteúdo da página antes de processar.");
+    state.raw = txt;
+    state.parsed = parsePrimary(txt);
+    renderAll(state.parsed);
+    $("#lastRun").textContent = "Processado manualmente: " + new Date().toLocaleString();
+  });
+  $("#filterInput").addEventListener("input", applyViewAndFilter);
+  $("#viewSelect").addEventListener("change", applyViewAndFilter);
+
+  // Boot
+  fetchLive();
+</script>
+</body>
+</html>
